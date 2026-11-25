@@ -10,16 +10,12 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/audio_models.dart';
 import '../services/ffmpeg_service.dart';
-import '../services/model_manager.dart';
-import '../services/onnx_denoiser.dart';
 
 final studioProvider = StateNotifierProvider<StudioNotifier, StudioState>((ref) {
   return StudioNotifier();
 });
 
 class StudioNotifier extends StateNotifier<StudioState> {
-  final _modelManager = ModelManager();
-  final _denoiser = OnnxDenoiserService();
   final _ffmpeg = FfmpegService();
   final _recorder = AudioRecorder();
   final AudioPlayer player = AudioPlayer();
@@ -27,30 +23,15 @@ class StudioNotifier extends StateNotifier<StudioState> {
   String? _extractedOrigWav;
   String? _rawDenoisedWav;
 
-  StudioNotifier() : super(const StudioState()) {
-    _bootstrapModel();
+  StudioNotifier()
+      : super(const StudioState(
+          isModelReady: true,
+          modelDownloadProgress: 1.0,
+          statusText: '100% Oflayn rejim tayyor',
+        )) {
     player.playerStateStream.listen((ps) {
       state = state.copyWith(isPlaying: ps.playing);
     });
-  }
-
-  Future<void> _bootstrapModel() async {
-    try {
-      state = state.copyWith(statusText: 'AI modeli tekshirilmoqda...');
-      final file = await _modelManager.ensureModel(
-        onProgress: (prog) => state = state.copyWith(
-          modelDownloadProgress: prog,
-          statusText: 'AI modeli yuklanmoqda: ${(prog * 100).toInt()}%',
-        ),
-      );
-      await _denoiser.init(file.path);
-      state = state.copyWith(
-        isModelReady: true,
-        statusText: 'Offline AI tayyor',
-      );
-    } catch (e) {
-      state = state.copyWith(statusText: 'Model xatosi: $e');
-    }
   }
 
   void setInputMode(InputMode mode) {
@@ -58,10 +39,10 @@ class StudioNotifier extends StateNotifier<StudioState> {
     state = state.copyWith(inputMode: mode);
   }
 
-  void setPreset(DenoisePreset preset) {
+  Future<void> setPreset(DenoisePreset preset) async {
     state = state.copyWith(preset: preset);
-    if (_rawDenoisedWav != null) {
-      _rebuildMixAndOutput();
+    if (_extractedOrigWav != null && _rawDenoisedWav != null) {
+      await _runDenoiseAndMix();
     }
   }
 
@@ -94,7 +75,7 @@ class StudioNotifier extends StateNotifier<StudioState> {
     final dir = await getTemporaryDirectory();
     final recPath = p.join(dir.path, 'rec_${DateTime.now().millisecondsSinceEpoch}.wav');
     await _recorder.start(
-      const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1),
+      const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 48000, numChannels: 1),
       path: recPath,
     );
     state = state.copyWith(
@@ -117,38 +98,44 @@ class StudioNotifier extends StateNotifier<StudioState> {
   }
 
   Future<void> processInputFile(String inputPath) async {
-    if (!state.isModelReady) return;
     await player.stop();
 
     final dir = await getTemporaryDirectory();
     final ts = DateTime.now().millisecondsSinceEpoch;
     _extractedOrigWav = p.join(dir.path, 'orig_$ts.wav');
-    _rawDenoisedWav = p.join(dir.path, 'ai_$ts.wav');
+    _rawDenoisedWav = p.join(dir.path, 'clean_$ts.wav');
 
     state = state.copyWith(
       originalPath: inputPath,
       isProcessing: true,
-      processProgress: 0.05,
-      statusText: 'Audio ajratilmoqda (FFmpeg)...',
+      processProgress: 0.15,
+      statusText: 'Audio ajratilmoqda...',
     );
 
     try {
       await _ffmpeg.extractPcm16k(inputPath, _extractedOrigWav!);
-
+      await _runDenoiseAndMix();
+    } catch (e) {
       state = state.copyWith(
-        processProgress: 0.2,
-        statusText: 'ONNX AI shovqinni tozalamoqda...',
+        isProcessing: false,
+        statusText: 'Xatolik: $e',
+      );
+    }
+  }
+
+  Future<void> _runDenoiseAndMix() async {
+    if (_extractedOrigWav == null || _rawDenoisedWav == null) return;
+    try {
+      state = state.copyWith(
+        isProcessing: true,
+        processProgress: 0.45,
+        statusText: 'Shovqin oflayn tozalanmoqda...',
       );
 
-      await _denoiser.denoiseWav(
+      await _ffmpeg.denoiseAudioOffline(
         inputWavPath: _extractedOrigWav!,
         outputWavPath: _rawDenoisedWav!,
-        onProgress: (prog) {
-          state = state.copyWith(
-            processProgress: 0.2 + (prog * 0.6),
-            statusText: 'AI tozalash: ${(prog * 100).toInt()}%',
-          );
-        },
+        preset: state.preset,
       );
 
       await _rebuildMixAndOutput();
@@ -170,7 +157,7 @@ class StudioNotifier extends StateNotifier<StudioState> {
 
     state = state.copyWith(
       isProcessing: true,
-      processProgress: 0.85,
+      processProgress: 0.8,
       statusText: 'EQ, Loudness va Mix qo‘llanmoqda...',
     );
 
@@ -265,7 +252,6 @@ class StudioNotifier extends StateNotifier<StudioState> {
   void dispose() {
     player.dispose();
     _recorder.dispose();
-    _denoiser.dispose();
     super.dispose();
   }
 }
