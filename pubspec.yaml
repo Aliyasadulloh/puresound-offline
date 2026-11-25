@@ -1,0 +1,32 @@
+name: puresound_offline
+description: 100% Offline On-Device AI Audio & Video Noise Remover
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.6.1
+  onnxruntime: ^1.4.1
+  ffmpeg_kit_flutter_new: ^1.6.1
+  record: ^5.2.0
+  just_audio: ^0.9.42
+  video_player: ^2.9.2
+  file_picker: ^8.1.4
+  path_provider: ^2.1.5
+  permission_handler: ^11.3.1
+  share_plus: ^10.1.2
+  dio: ^5.7.0
+  gal: ^2.3.0
+  path: ^1.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
