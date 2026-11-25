@@ -14,7 +14,33 @@ class FfmpegService {
 
   Future<void> extractPcm16k(String inputPath, String outputWavPath) async {
     await _exec(
-      '-y -i "$inputPath" -vn -acodec pcm_s16le -ar 16000 -ac 1 "$outputWavPath"',
+      '-y -i "$inputPath" -vn -acodec pcm_s16le -ar 48000 -ac 1 "$outputWavPath"',
+    );
+  }
+
+  /// 100% Oflayn lokal shovqin tozalash (internet va tashqi model shart emas)
+  Future<void> denoiseAudioOffline({
+    required String inputWavPath,
+    required String outputWavPath,
+    required DenoisePreset preset,
+  }) async {
+    String denoiseFilter;
+    switch (preset) {
+      case DenoisePreset.light:
+        denoiseFilter = 'highpass=f=70,afftdn=nr=12:nf=-30:tn=1';
+        break;
+      case DenoisePreset.strong:
+        denoiseFilter =
+            'highpass=f=100,lowpass=f=12000,afftdn=nr=22:nf=-25:tn=1,anlmdn=s=0.0005:p=0.002:r=0.006:m=15';
+        break;
+      case DenoisePreset.studio:
+        denoiseFilter =
+            'highpass=f=85,afftdn=nr=18:nf=-28:tn=1,anlmdn=s=0.0003:p=0.002:r=0.006:m=12';
+        break;
+    }
+
+    await _exec(
+      '-y -i "$inputWavPath" -af "$denoiseFilter" -acodec pcm_s16le -ar 48000 -ac 1 "$outputWavPath"',
     );
   }
 
@@ -34,7 +60,7 @@ class FfmpegService {
         postFilter = 'highpass=f=70,lowpass=f=15000';
         break;
       case DenoisePreset.strong:
-        postFilter = 'highpass=f=100,lowpass=f=12000,afftdn=nf=-25';
+        postFilter = 'highpass=f=95,lowpass=f=12500';
         break;
       case DenoisePreset.studio:
         postFilter =
