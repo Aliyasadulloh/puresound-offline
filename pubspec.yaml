@@ -12,7 +12,7 @@ dependencies:
   flutter_riverpod: ^2.6.1
   onnxruntime: ^1.4.1
   ffmpeg_kit_flutter_new: any
-  record: ^5.2.0
+ record: any
   just_audio: ^0.9.42
   video_player: ^2.9.2
   file_picker: ^8.1.4
