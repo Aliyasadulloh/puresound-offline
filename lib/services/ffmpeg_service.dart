@@ -12,35 +12,35 @@ class FfmpegService {
     }
   }
 
-  Future<void> extractPcm16k(String inputPath, String outputWavPath) async {
+  Future<void> extractPcm48k(String inputPath, String outputWavPath) async {
     await _exec(
       '-y -i "$inputPath" -vn -acodec pcm_s16le -ar 48000 -ac 1 "$outputWavPath"',
     );
   }
 
-  /// 100% Oflayn lokal shovqin tozalash (internet va tashqi model shart emas)
-  Future<void> denoiseAudioOffline({
+  /// APK ichidagi RNNoise neyrotarmog'i (GRU AI) bilan 100% oflayn tozalash
+  Future<void> denoiseWithAi({
     required String inputWavPath,
     required String outputWavPath,
     required DenoisePreset preset,
+    required String generalModelPath,
+    required String voiceModelPath,
   }) async {
-    String denoiseFilter;
+    String aiFilter;
     switch (preset) {
       case DenoisePreset.light:
-        denoiseFilter = 'highpass=f=70,afftdn=nr=12:nf=-30:tn=1';
+        aiFilter = "highpass=f=70,arnndn=m='$voiceModelPath'";
         break;
       case DenoisePreset.strong:
-        denoiseFilter =
-            'highpass=f=100,lowpass=f=12000,afftdn=nr=22:nf=-25:tn=1,anlmdn=s=0.0005:p=0.002:r=0.006:m=15';
+        aiFilter = "highpass=f=100,arnndn=m='$generalModelPath',lowpass=f=13000";
         break;
       case DenoisePreset.studio:
-        denoiseFilter =
-            'highpass=f=85,afftdn=nr=18:nf=-28:tn=1,anlmdn=s=0.0003:p=0.002:r=0.006:m=12';
+        aiFilter = "highpass=f=85,arnndn=m='$voiceModelPath'";
         break;
     }
 
     await _exec(
-      '-y -i "$inputWavPath" -af "$denoiseFilter" -acodec pcm_s16le -ar 48000 -ac 1 "$outputWavPath"',
+      '-y -i "$inputWavPath" -af "$aiFilter" -acodec pcm_s16le -ar 48000 -ac 1 "$outputWavPath"',
     );
   }
 
@@ -60,7 +60,7 @@ class FfmpegService {
         postFilter = 'highpass=f=70,lowpass=f=15000';
         break;
       case DenoisePreset.strong:
-        postFilter = 'highpass=f=95,lowpass=f=12500';
+        postFilter = 'highpass=f=95,lowpass=f=13000';
         break;
       case DenoisePreset.studio:
         postFilter =
