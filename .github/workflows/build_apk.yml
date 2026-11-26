@@ -29,6 +29,13 @@ jobs:
             flutter create . --platforms=android
           fi
 
+      - name: Bundle Offline AI Models (RNNoise Neural Network)
+        run: |
+          mkdir -p assets/models
+          curl -fSL https://raw.githubusercontent.com/GregorR/rnnoise-models/master/somnolent-hogwash-2018-09-01/sh.rnnn -o assets/models/sh.rnnn
+          curl -fSL https://raw.githubusercontent.com/GregorR/rnnoise-models/master/beguiling-drafter-2018-08-30/bd.rnnn -o assets/models/bd.rnnn
+          ls -lh assets/models/
+
       - name: Force compileSdk 36 for App and ALL Plugins
         run: |
           mkdir -p ~/.gradle/init.d
