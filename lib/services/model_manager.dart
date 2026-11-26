@@ -7,7 +7,7 @@ class ModelManager {
   static const String generalModelAsset = 'assets/models/sh.rnnn';
   static const String voiceModelAsset = 'assets/models/bd.rnnn';
 
-  Future> prepareBundledModels() async {
+  Future prepareBundledModels() async {
     final dir = await getApplicationDocumentsDirectory();
     final generalPath =
         await _copyAsset(generalModelAsset, p.join(dir.path, 'sh.rnnn'));
@@ -19,7 +19,7 @@ class ModelManager {
     };
   }
 
-  Future<String> _copyAsset(String assetPath, String targetPath) async {
+  Future _copyAsset(String assetPath, String targetPath) async {
     final file = File(targetPath);
     if (!file.existsSync() || file.lengthSync() < 1000) {
       final data = await rootBundle.load(assetPath);
