@@ -1,47 +1,29 @@
 import 'dart:io';
-import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 class ModelManager {
-  static const String modelFileName = 'dns48_denoiser_int8.onnx';
-  static const String modelDownloadUrl =
-      'https://huggingface.co/onnx-community/denoiser-dns48/resolve/main/onnx/model_quantized.onnx';
+  static const String generalModelAsset = 'assets/models/sh.rnnn';
+  static const String voiceModelAsset = 'assets/models/bd.rnnn';
 
-  Future<File> getModelFile() async {
+  Future> prepareBundledModels() async {
     final dir = await getApplicationDocumentsDirectory();
-    return File(p.join(dir.path, modelFileName));
+    final generalPath = await _copyAsset(generalModelAsset, p.join(dir.path, 'sh.rnnn'));
+    final voicePath = await _copyAsset(voiceModelAsset, p.join(dir.path, 'bd.rnnn'));
+    return {
+      'general': generalPath,
+      'voice': voicePath,
+    };
   }
 
-  Future<bool> isModelDownloaded() async {
-    final file = await getModelFile();
-    return file.existsSync() && file.lengthSync() > 100000;
-  }
-
-  Future<File> ensureModel({
-    required void Function(double progress) onProgress,
-  }) async {
-    final file = await getModelFile();
-    if (await isModelDownloaded()) {
-      onProgress(1.0);
-      return file;
+  Future<String> _copyAsset(String assetPath, String targetPath) async {
+    final file = File(targetPath);
+    if (!file.existsSync() || file.lengthSync() < 1000) {
+      final data = await rootBundle.load(assetPath);
+      final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      await file.writeAsBytes(bytes, flush: true);
     }
-
-    final dio = Dio();
-    final tempPath = '${file.path}.tmp';
-    await dio.download(
-      modelDownloadUrl,
-      tempPath,
-      onReceiveProgress: (received, total) {
-        if (total > 0) {
-          onProgress(received / total);
-        }
-      },
-    );
-
-    final tempFile = File(tempPath);
-    await tempFile.rename(file.path);
-    onProgress(1.0);
-    return file;
+    return file.path;
   }
 }
