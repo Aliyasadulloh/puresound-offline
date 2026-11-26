@@ -9,8 +9,10 @@ class ModelManager {
 
   Future> prepareBundledModels() async {
     final dir = await getApplicationDocumentsDirectory();
-    final generalPath = await _copyAsset(generalModelAsset, p.join(dir.path, 'sh.rnnn'));
-    final voicePath = await _copyAsset(voiceModelAsset, p.join(dir.path, 'bd.rnnn'));
+    final generalPath =
+        await _copyAsset(generalModelAsset, p.join(dir.path, 'sh.rnnn'));
+    final voicePath =
+        await _copyAsset(voiceModelAsset, p.join(dir.path, 'bd.rnnn'));
     return {
       'general': generalPath,
       'voice': voicePath,
@@ -21,7 +23,8 @@ class ModelManager {
     final file = File(targetPath);
     if (!file.existsSync() || file.lengthSync() < 1000) {
       final data = await rootBundle.load(assetPath);
-      final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      final bytes =
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
       await file.writeAsBytes(bytes, flush: true);
     }
     return file.path;
