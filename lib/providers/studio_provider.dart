@@ -10,28 +10,44 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/audio_models.dart';
 import '../services/ffmpeg_service.dart';
+import '../services/model_manager.dart';
 
 final studioProvider = StateNotifierProvider<StudioNotifier, StudioState>((ref) {
   return StudioNotifier();
 });
 
 class StudioNotifier extends StateNotifier<StudioState> {
+  final _modelManager = ModelManager();
   final _ffmpeg = FfmpegService();
   final _recorder = AudioRecorder();
   final AudioPlayer player = AudioPlayer();
 
+  String? _generalModelPath;
+  String? _voiceModelPath;
   String? _extractedOrigWav;
   String? _rawDenoisedWav;
 
-  StudioNotifier()
-      : super(const StudioState(
-          isModelReady: true,
-          modelDownloadProgress: 1.0,
-          statusText: '100% Oflayn rejim tayyor',
-        )) {
+  StudioNotifier() : super(const StudioState()) {
+    _bootstrapBundledAi();
     player.playerStateStream.listen((ps) {
       state = state.copyWith(isPlaying: ps.playing);
     });
+  }
+
+  Future<void> _bootstrapBundledAi() async {
+    try {
+      state = state.copyWith(statusText: 'Oflayn AI modeli tayyorlanmoqda...');
+      final models = await _modelManager.prepareBundledModels();
+      _generalModelPath = models['general'];
+      _voiceModelPath = models['voice'];
+      state = state.copyWith(
+        isModelReady: true,
+        modelDownloadProgress: 1.0,
+        statusText: '100% Oflayn AI tayyor',
+      );
+    } catch (e) {
+      state = state.copyWith(statusText: 'AI modeli xatosi: $e');
+    }
   }
 
   void setInputMode(InputMode mode) {
@@ -42,7 +58,7 @@ class StudioNotifier extends StateNotifier<StudioState> {
   Future<void> setPreset(DenoisePreset preset) async {
     state = state.copyWith(preset: preset);
     if (_extractedOrigWav != null && _rawDenoisedWav != null) {
-      await _runDenoiseAndMix();
+      await _runAiAndMix();
     }
   }
 
@@ -98,12 +114,15 @@ class StudioNotifier extends StateNotifier<StudioState> {
   }
 
   Future<void> processInputFile(String inputPath) async {
+    if (!state.isModelReady || _generalModelPath == null || _voiceModelPath == null) {
+      return;
+    }
     await player.stop();
 
     final dir = await getTemporaryDirectory();
     final ts = DateTime.now().millisecondsSinceEpoch;
     _extractedOrigWav = p.join(dir.path, 'orig_$ts.wav');
-    _rawDenoisedWav = p.join(dir.path, 'clean_$ts.wav');
+    _rawDenoisedWav = p.join(dir.path, 'ai_$ts.wav');
 
     state = state.copyWith(
       originalPath: inputPath,
@@ -113,8 +132,8 @@ class StudioNotifier extends StateNotifier<StudioState> {
     );
 
     try {
-      await _ffmpeg.extractPcm16k(inputPath, _extractedOrigWav!);
-      await _runDenoiseAndMix();
+      await _ffmpeg.extractPcm48k(inputPath, _extractedOrigWav!);
+      await _runAiAndMix();
     } catch (e) {
       state = state.copyWith(
         isProcessing: false,
@@ -123,19 +142,26 @@ class StudioNotifier extends StateNotifier<StudioState> {
     }
   }
 
-  Future<void> _runDenoiseAndMix() async {
-    if (_extractedOrigWav == null || _rawDenoisedWav == null) return;
+  Future<void> _runAiAndMix() async {
+    if (_extractedOrigWav == null ||
+        _rawDenoisedWav == null ||
+        _generalModelPath == null ||
+        _voiceModelPath == null) {
+      return;
+    }
     try {
       state = state.copyWith(
         isProcessing: true,
         processProgress: 0.45,
-        statusText: 'Shovqin oflayn tozalanmoqda...',
+        statusText: 'Oflayn AI shovqinni tozalamoqda...',
       );
 
-      await _ffmpeg.denoiseAudioOffline(
+      await _ffmpeg.denoiseWithAi(
         inputWavPath: _extractedOrigWav!,
         outputWavPath: _rawDenoisedWav!,
         preset: state.preset,
+        generalModelPath: _generalModelPath!,
+        voiceModelPath: _voiceModelPath!,
       );
 
       await _rebuildMixAndOutput();
